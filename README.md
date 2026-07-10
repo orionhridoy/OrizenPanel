@@ -87,10 +87,9 @@ The installer provisions **everything needed for full operation** in one run: Ap
 
 ## 🚀 Quick start (one command)
 
-On a **fresh** server, copy this folder over and run:
+On a **fresh** server, copy these commands:
 
 ```bash
-ssh root@127.0.0.1
 git clone https://github.com/orionhridoy/OrizenPanel.git
 cd OrizenPanel
 sudo bash install.sh --auto        # installs everything, prints a random login once
