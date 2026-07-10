@@ -17,8 +17,6 @@
 
 ## 📸 Screenshots
 
-Representative views (drop your own captures into [`docs/screenshots/`](docs/screenshots/)):
-
 | Control panel dashboard | Websites + Cloudflare automation |
 |---|---|
 | ![Orizen Panel dashboard](docs/screenshots/Dashboard.png) | ![Websites with Cloudflare automation](docs/screenshots/Websites.png) |
