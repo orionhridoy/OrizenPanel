@@ -237,20 +237,6 @@ The gateway exposes an HMAC‑signed REST API (`/api/v1`). Every request carries
 
 ---
 
-## 📦 What's inside
-
-```
-install.sh          the installer — run this on a fresh server (cross-distro)
-core/ui/            control panel        -> /opt/orizen/panel
-core/svc/           payment engine       -> deployed per-domain by the panel
-core/bin/           validated root helper (+ optional automation CLI)
-docs/               integration SDKs + ready-made webhook handler, setup guides
-```
-
-The control panel and the payment engine are merged under one `core/` tree; the installer splits them to the right places. Attribution is stored encoded + integrity‑checked.
-
----
-
 <p align="center"><sub>
 <b>Keywords:</b> self-hosted web hosting control panel · cPanel alternative · WHM alternative · free hosting panel ·
 cloud hosting · website management · developer hosting tools · web panel · Cloudflare DNS automation · staging environments ·
