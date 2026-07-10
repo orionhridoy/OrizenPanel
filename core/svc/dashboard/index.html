@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Orizen Payment Gateway</title>
+    <!-- Panel SSO (#sso=<base64url TokenPair>) is adopted in src/main.tsx before the app renders.
+         It must live in the bundled module, not an inline <script>, because the gateway's
+         Content-Security-Policy (script-src 'self') blocks inline scripts. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

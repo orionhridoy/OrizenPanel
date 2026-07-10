@@ -1,0 +1,7 @@
+{
+  "version": "1.1.0",
+  "build": "110",
+  "channel": "stable",
+  "changelog": "Orizen Panel 1.1.0 - module system (core/modules/plugins), built-in update system with safe backup + rollback, feature flags, faster async dashboard, file-tree files view, and a silent install counter. Fully backward compatible - existing installs upgrade without a reinstall.",
+  "download_url": ""
+}

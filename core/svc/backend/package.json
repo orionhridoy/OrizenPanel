@@ -1,0 +1,56 @@
+{
+  "name": "orizen-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ORIZEN PAY — API and payment-engine workers",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "nest build",
+    "lint": "eslint \"src/**/*.ts\"",
+    "start:api": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
+    "test": "node --test dist/**/*.spec.js"
+  },
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.1.1",
+    "@nestjs/common": "^10.4.15",
+    "@nestjs/core": "^10.4.15",
+    "@nestjs/platform-express": "^10.4.15",
+    "bip32": "^4.0.0",
+    "bitcoinjs-lib": "^6.1.7",
+    "bs58check": "^4.0.0",
+    "bullmq": "^5.34.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "cron-parser": "^4.9.0",
+    "ethers": "^6.13.4",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.2",
+    "jsonwebtoken": "^9.0.2",
+    "otplib": "^12.0.1",
+    "pg": "^8.13.1",
+    "prom-client": "^15.1.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "xrpl": "^4.1.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.9",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^20.17.10",
+    "@types/pg": "^8.11.10",
+    "@typescript-eslint/eslint-plugin": "^8.19.0",
+    "@typescript-eslint/parser": "^8.19.0",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2"
+  },
+  "_overrides_note": "xrpl 4.x → @xrplf/isomorphic (CJS) pulls these transitively; newer releases are ESM-only and break require() in our CommonJS build, so pin the last CJS-compatible versions.",
+  "overrides": {
+    "@noble/hashes": "1.8.0",
+    "@scure/base": "1.1.9"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "orizen-signer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ORIZEN PAY isolated signing service — the only holder of private key material",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.1.1",
+    "bip32": "^4.0.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^6.1.7",
+    "bs58check": "^4.0.0",
+    "ethers": "^6.13.4",
+    "xrpl": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.10",
+    "typescript": "^5.7.2"
+  },
+  "_overrides_note": "xrpl 4.x → @xrplf/isomorphic (CJS) pulls these transitively; newer releases are ESM-only and break require() in our CommonJS build, so pin the last CJS-compatible versions.",
+  "overrides": {
+    "@noble/hashes": "1.8.0",
+    "@scure/base": "1.1.9"
+  }
+}
