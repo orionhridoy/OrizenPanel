@@ -62,7 +62,7 @@ Most control panels stop at hosting. Most payment gateways lock you into a proce
 - **Two‑factor authentication, two ways:** an **authenticator app** (TOTP - Google Authenticator, Authy, 1Password…) **and/or Telegram** (a login code sent to your bot). Turn on either or both.
 - **Staged login** - password first, then the second factor; brute‑force attempts are rate‑limited and locked out automatically.
 
-### 💳 Orizen Pay - self‑hosted crypto gateway
+### 💳 Orizen Pay - self‑hosted crypto gateway (No KYC)
 - **Accept crypto directly** - **BTC, LTC, ETH, XRP, USDT (TRC‑20), USDC** - straight to wallets you control.
 - **One‑click install onto any domain** - built in Docker, reverse‑proxied, and secured with Cloudflare HTTPS. Hands you a **fresh, random admin login**. Click **Open** from the panel and you're **signed in automatically** (secure panel→gateway SSO).
 - **Zero blockchain storage** - every chain is read from an external RPC/explorer, so there are **no multi‑terabyte nodes to sync**. It uses **zero resources until you install one**.
