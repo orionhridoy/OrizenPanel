@@ -89,9 +89,9 @@ The installer provisions **everything needed for full operation** in one run: Ap
 On a **fresh** server, copy this folder over and run:
 
 ```bash
-scp -r Orizen root@YOUR_SERVER:/root/
 ssh root@YOUR_SERVER
-cd /root/Orizen
+git clone https://github.com/orionhridoy/OrizenPanel.git
+cd Orizen
 sudo bash install.sh --auto        # installs everything, prints a random login once
 ```
 
