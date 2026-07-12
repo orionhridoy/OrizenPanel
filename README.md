@@ -1,4 +1,4 @@
-<h1 align="center">Orizen Panel - Web Hosting Control Panel with a Built‑in Self‑Hosted Crypto Payment Gateway</h1>
+<h1 align="center">Orizen Panel - Web Hosting Control Panel with a Built‑in Self‑Hosted Crypto Payment Gateway (No KYC)</h1>
 
 <p align="center"><b>One server. One panel. Host unlimited websites with automatic Cloudflare DNS + lifetime HTTPS - and deploy your own multi‑chain crypto payment gateway in one click.</b></p>
 
