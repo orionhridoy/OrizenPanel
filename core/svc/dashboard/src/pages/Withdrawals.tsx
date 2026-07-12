@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { WithdrawalRow, fromBase } from '../api/types';
+import { WithdrawalRow, explorerTxUrl, fromBase } from '../api/types';
 import { HelpButton } from '../components/Help';
 import Pager from '../components/Pager';
 
@@ -253,7 +253,24 @@ export default function Withdrawals(): JSX.Element {
                 <td>{fromBase(w.amount, w.asset_code)}</td>
                 <td className="mono">{w.destination_address.slice(0, 20)}...</td>
                 <td><span className={`badge ${w.status}`}>{w.status}</span></td>
-                <td className="mono">{w.txid ? `${w.txid.slice(0, 14)}...` : '-'}</td>
+                <td className="mono">
+                  {w.txid ? (
+                    explorerTxUrl(w.asset_code, w.txid) ? (
+                      <a
+                        href={explorerTxUrl(w.asset_code, w.txid) as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={w.txid}
+                      >
+                        {w.txid.slice(0, 14)}... ↗
+                      </a>
+                    ) : (
+                      `${w.txid.slice(0, 14)}...`
+                    )
+                  ) : (
+                    '-'
+                  )}
+                </td>
               </tr>
             ))}
             {items.length === 0 && <tr><td colSpan={6} className="muted">No withdrawals.</td></tr>}

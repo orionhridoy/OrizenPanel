@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { InvoiceView, fromBase } from '../api/types';
+import { InvoiceView, explorerTxUrl, fromBase } from '../api/types';
 
 interface PaymentRow {
   id: string;
@@ -122,7 +122,20 @@ export default function InvoiceDetail(): JSX.Element {
             {payments.map((payment) => (
               <tr key={payment.id}>
                 <td>{new Date(payment.detected_at).toLocaleString()}</td>
-                <td className="mono">{payment.txid.slice(0, 18)}...</td>
+                <td className="mono">
+                  {explorerTxUrl(invoice.asset, payment.txid) ? (
+                    <a
+                      href={explorerTxUrl(invoice.asset, payment.txid) as string}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={payment.txid}
+                    >
+                      {payment.txid.slice(0, 18)}... ↗
+                    </a>
+                  ) : (
+                    `${payment.txid.slice(0, 18)}...`
+                  )}
+                </td>
                 <td>{fromBase(payment.amount, invoice.asset)}</td>
                 <td>
                   <span className={`badge ${payment.status}`}>{payment.status}</span>

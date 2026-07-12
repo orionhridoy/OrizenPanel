@@ -45,11 +45,12 @@ export default function GettingStarted(): JSX.Element | null {
       <div className="progressbar" style={{ margin: '10px 0 16px' }}><div style={{ width: `${(done / steps.length) * 100}%` }} /></div>
       <div style={{ display: 'grid', gap: 10 }}>
         {steps.map((s) => (
-          <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+          <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, background: 'var(--panel)', border: '1px solid var(--border)' }}>
             <div style={{
               width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontWeight: 700, fontSize: 13,
-              background: s.done ? 'var(--green)' : 'rgba(255,255,255,0.08)', color: s.done ? '#04120a' : 'var(--muted)',
+              background: s.done ? 'var(--green)' : 'var(--panel-2)', color: s.done ? '#fff' : 'var(--muted)',
+              border: s.done ? 'none' : '1px solid var(--border-strong)',
             }}>{s.done ? '✓' : '•'}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? 0.6 : 1 }}>{s.label}</div>

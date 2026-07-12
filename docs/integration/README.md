@@ -1,12 +1,12 @@
-# Orizen Pay - integration samples
+# Orizen Pay — integration samples
 
 Everything you need to accept crypto on your own site. Drop these files into the **same folder** on your server (your web root).
 
 | File | What it is |
 |---|---|
-| [`orizen.php`](orizen.php) | PHP server SDK - signs every API request for you. |
-| [`orizen.js`](orizen.js) | Node server SDK - same, for Express/Node apps. |
-| [`orizen-config.php`](orizen-config.php) | Your keys/secret - **keep private**, never commit. |
+| [`orizen.php`](orizen.php) | PHP server SDK — signs every API request for you. |
+| [`orizen.js`](orizen.js) | Node server SDK — same, for Express/Node apps. |
+| [`orizen-config.php`](orizen-config.php) | Your keys/secret — **keep private**, never commit. |
 | [`orizen-webhook.php`](orizen-webhook.php) | Receives + verifies payment events (`invoice.paid`, …). |
 | [`pay.php`](pay.php) | Creates an invoice and redirects the buyer to hosted checkout. |
 

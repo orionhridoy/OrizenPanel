@@ -40,7 +40,21 @@ interface PaymentRow {
   block_hash: string | null;
   confirmations: number;
   credited: boolean;
+  credit_epoch: number;
+  missing_since: string | null;
+  /** confirmation policy snapshotted on the invoice (null for unsolicited deposits) */
+  invoice_required_confirmations: number | null;
 }
+
+/** statuses a payment can be resurrected from when its tx reappears on-chain */
+const DEAD_PAYMENT_STATUSES = ['REPLACED', 'REJECTED', 'ORPHANED'] as const;
+
+/**
+ * How long a tx must stay missing from the chain before we act on it.
+ * A single "not found" from a lagging node, a restarted mempool, or an
+ * explorer hiccup must never reject a payment or reverse a credit.
+ */
+const MISSING_GRACE_MS = 15 * 60 * 1000;
 
 interface PendingEvent {
   merchantId: string;
@@ -105,11 +119,17 @@ export class PaymentEngineService {
             from_address, status, block_height, block_hash, is_rbf)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (asset_code, txid, output_index, log_index)
-         DO UPDATE SET block_height = EXCLUDED.block_height,
-                       block_hash   = EXCLUDED.block_hash,
+         DO UPDATE SET block_height = COALESCE(EXCLUDED.block_height, payments.block_height),
+                       block_hash   = COALESCE(EXCLUDED.block_hash, payments.block_hash),
+                       missing_since = NULL,
                        status = CASE
                          WHEN payments.status IN ('MEMPOOL') AND EXCLUDED.status = 'CONFIRMING'
                            THEN 'CONFIRMING'
+                         -- a rejected/replaced/orphaned tx observed on-chain again
+                         -- (rebroadcast, re-mined after a reorg, or a prior false
+                         -- rejection from a flaky RPC) re-enters the state machine
+                         WHEN payments.status IN ('REPLACED', 'REJECTED', 'ORPHANED')
+                           THEN EXCLUDED.status
                          ELSE payments.status
                        END
          RETURNING id, (xmax = 0) AS inserted`,
@@ -144,12 +164,20 @@ export class PaymentEngineService {
     const adapter = this.adapters.forChain(chain);
     const open = await this.db.query<PaymentRow>(
       `SELECT p.id, p.invoice_id, p.address_id, p.asset_code, p.txid, p.amount, p.status,
-              p.block_height::text, p.block_hash, p.confirmations, p.credited
+              p.block_height::text, p.block_hash, p.confirmations, p.credited,
+              p.credit_epoch, p.missing_since,
+              i.required_confirmations AS invoice_required_confirmations
          FROM payments p
          JOIN assets a ON a.code = p.asset_code
+         LEFT JOIN invoices i ON i.id = p.invoice_id
         WHERE a.chain = $1
           AND (p.status IN ('MEMPOOL', 'CONFIRMING')
-               OR (p.status = 'CONFIRMED' AND p.confirmed_at > now() - interval '24 hours'))
+               OR (p.status = 'CONFIRMED' AND p.confirmed_at > now() - interval '24 hours')
+               -- recently-dead payments are re-checked (backed off to ~10 min) so a
+               -- tx that reappears in an already-scanned block is still recovered
+               OR (p.status IN ('REPLACED', 'REJECTED', 'ORPHANED')
+                   AND p.detected_at > now() - interval '48 hours'
+                   AND p.updated_at < now() - interval '10 minutes'))
         ORDER BY p.detected_at
         LIMIT 500`,
       [chain],
@@ -171,15 +199,42 @@ export class PaymentEngineService {
   ): Promise<void> {
     const txStatus = await adapter.getTransactionStatus(payment.txid);
     const events: PendingEvent[] = [];
+    const isDead = (DEAD_PAYMENT_STATUSES as readonly string[]).includes(payment.status);
 
     await this.db.tx(async (client) => {
       const asset = await this.asset(client, payment.asset_code);
+      const requiredConfirmations =
+        payment.invoice_required_confirmations ?? asset.min_confirmations;
 
       if (!txStatus.exists) {
+        if (isDead) {
+          // still gone; touching updated_at backs off the periodic re-check
+          await client.query(
+            `UPDATE payments SET missing_since = COALESCE(missing_since, now()) WHERE id = $1`,
+            [payment.id],
+          );
+          return;
+        }
+        // arm / check the missing-grace window before acting: transient RPC or
+        // explorer gaps (restarted mempool, lagging failover node) must never
+        // reject a live payment or reverse a posted credit
+        if (!payment.missing_since) {
+          await client.query(`UPDATE payments SET missing_since = now() WHERE id = $1`, [
+            payment.id,
+          ]);
+          return;
+        }
+        if (Date.now() - new Date(payment.missing_since).getTime() < MISSING_GRACE_MS) return;
+
         if (payment.status === 'CONFIRMED' && payment.credited) {
           // reorg deeper than the confirmation policy - reverse the credit
           await this.reverseCredit(client, payment, asset);
-          await client.query(`UPDATE payments SET status = 'ORPHANED' WHERE id = $1`, [payment.id]);
+          await client.query(
+            `UPDATE payments
+                SET status = 'ORPHANED', credited = false, credit_epoch = credit_epoch + 1
+              WHERE id = $1`,
+            [payment.id],
+          );
           this.metrics.paymentAnomalies.labels(chain, 'reorg_reversal').inc();
           this.logger.error(
             `REORG REVERSAL: credited payment ${payment.id} (${payment.txid}) vanished`,
@@ -200,9 +255,27 @@ export class PaymentEngineService {
         return;
       }
 
-      // still around - update confirmation state
+      // tx is on-chain: clear any missing marker and resurrect dead payments
+      // (rebroadcast after eviction, re-mined after a reorg, false rejection)
+      let status = payment.status;
+      if (payment.missing_since !== null || isDead) {
+        if (isDead) {
+          status = txStatus.blockHeight === null ? 'MEMPOOL' : 'CONFIRMING';
+          this.metrics.paymentAnomalies.labels(chain, 'payment_resurrected').inc();
+          this.logger.warn(
+            `payment ${payment.id} (${payment.txid}) reappeared on-chain - resurrected from ${payment.status}`,
+          );
+        }
+        await client.query(
+          `UPDATE payments SET missing_since = NULL, status = $2, replaced_by_txid = NULL
+            WHERE id = $1`,
+          [payment.id, status],
+        );
+      }
+
+      // update confirmation state
       if (txStatus.blockHeight === null) {
-        if (payment.status === 'CONFIRMING') {
+        if (status === 'CONFIRMING') {
           // fell back out of a block (shallow reorg)
           await client.query(
             `UPDATE payments SET status = 'MEMPOOL', block_height = NULL, block_hash = NULL,
@@ -213,12 +286,14 @@ export class PaymentEngineService {
           if (payment.invoice_id) {
             events.push(...(await this.recomputeInvoice(client, payment.invoice_id)));
           }
+        } else if (isDead && payment.invoice_id) {
+          events.push(...(await this.recomputeInvoice(client, payment.invoice_id)));
         }
         return;
       }
 
-      const confirmed = txStatus.confirmations >= asset.min_confirmations;
-      if (payment.status !== 'CONFIRMED') {
+      const confirmed = txStatus.confirmations >= requiredConfirmations;
+      if (status !== 'CONFIRMED') {
         await client.query(
           `UPDATE payments
               SET status = $2, block_height = $3, block_hash = $4, confirmations = $5,
@@ -248,6 +323,16 @@ export class PaymentEngineService {
     });
 
     await this.flushEvents(events);
+  }
+
+  /**
+   * Journal reference for a payment's credit/reversal pair. The first credit
+   * uses the bare payment id (backward compatible with existing journals);
+   * re-credits after a reversal get a fresh reference per credit_epoch so the
+   * idempotency key doesn't swallow a legitimate re-credit.
+   */
+  private creditReference(payment: PaymentRow): string {
+    return payment.credit_epoch === 0 ? payment.id : `${payment.id}:r${payment.credit_epoch}`;
   }
 
   /**
@@ -281,7 +366,7 @@ export class PaymentEngineService {
       await this.ledger.postJournal(client, {
         journalType: 'PAYMENT_CONFIRMED',
         referenceType: 'payment',
-        referenceId: payment.id,
+        referenceId: this.creditReference(payment),
         description: `unsolicited deposit ${payment.txid}`,
         entries: [
           { accountId: external, direction: 'DEBIT', amount: payment.amount, assetCode: payment.asset_code },
@@ -305,7 +390,7 @@ export class PaymentEngineService {
       await this.ledger.postJournal(client, {
         journalType: 'PAYMENT_CONFIRMED',
         referenceType: 'payment',
-        referenceId: payment.id,
+        referenceId: this.creditReference(payment),
         description: `top-up ${payment.txid} for store user ${invoice.store_user_id}`,
         entries: [
           { accountId: external, direction: 'DEBIT', amount: payment.amount, assetCode: payment.asset_code },
@@ -330,7 +415,7 @@ export class PaymentEngineService {
       await this.ledger.postJournal(client, {
         journalType: 'PAYMENT_CONFIRMED',
         referenceType: 'payment',
-        referenceId: payment.id,
+        referenceId: this.creditReference(payment),
         description: `payment ${payment.txid} for invoice ${invoice.id}`,
         entries: [
           { accountId: external, direction: 'DEBIT', amount: payment.amount, assetCode: payment.asset_code },
@@ -389,7 +474,8 @@ export class PaymentEngineService {
     await this.ledger.postJournal(client, {
       journalType: 'PAYMENT_REVERSED',
       referenceType: 'payment',
-      referenceId: payment.id,
+      // pairs with the credit posted at the same epoch
+      referenceId: this.creditReference(payment),
       description: `reorg reversal of ${payment.txid}`,
       entries: [
         { accountId: counterAccount, direction: 'DEBIT', amount: payment.amount, assetCode: payment.asset_code },
@@ -412,12 +498,12 @@ export class PaymentEngineService {
     );
     const invoice = invoiceResult.rows[0];
     if (!invoice) return [];
-    if (invoice.status === 'INVALID') return [];
 
     const sums = (
-      await client.query<{ pending: string; confirmed: string }>(
+      await client.query<{ mempool: string; inblock: string; confirmed: string }>(
         `SELECT
-           COALESCE(SUM(amount) FILTER (WHERE status IN ('MEMPOOL','CONFIRMING')), 0)::text AS pending,
+           COALESCE(SUM(amount) FILTER (WHERE status = 'MEMPOOL'), 0)::text AS mempool,
+           COALESCE(SUM(amount) FILTER (WHERE status = 'CONFIRMING'), 0)::text AS inblock,
            COALESCE(SUM(amount) FILTER (WHERE status = 'CONFIRMED'), 0)::text AS confirmed
          FROM payments WHERE invoice_id = $1`,
         [invoiceId],
@@ -427,23 +513,32 @@ export class PaymentEngineService {
     const due = invoice.amount_due;
     const tolerance = invoice.underpayment_tolerance_bps;
     const expired = new Date(invoice.expires_at).getTime() < Date.now();
-    const pending = BigInt(sums.pending);
+    const mempool = BigInt(sums.mempool);
+    const inblock = BigInt(sums.inblock);
     const confirmed = BigInt(sums.confirmed);
+    const pending = mempool + inblock;
+    const pendingText = pending.toString();
 
-    let next = invoice.status;
+    // INVALID (credit was reversed) stays terminal only while no live payment
+    // remains; a re-mined tx or a fresh payment resurrects the invoice
+    if (invoice.status === 'INVALID' && confirmed === 0n && pending === 0n) return [];
+
+    // Pure function of the payments (plus the expiry clock). Expiry only ever
+    // applies when nothing was detected: a detected payment can never expire,
+    // no matter how long its confirmations take.
+    let next: string;
     if (confirmed > BigInt(due)) {
       next = 'OVERPAID';
     } else if (confirmed > 0n && meetsWithTolerance(sums.confirmed, due, tolerance)) {
       next = 'PAID';
     } else if (confirmed > 0n && expired && pending === 0n) {
       next = 'UNDERPAID';
-    } else if (confirmed > 0n || pending > 0n) {
-      next = pending > 0n && confirmed === 0n && invoice.status === 'NEW' ? 'SEEN' : 'CONFIRMING';
-      if (invoice.status === 'SEEN' && pending > 0n && confirmed === 0n) next = 'SEEN';
-    } else if (expired && invoice.status === 'NEW') {
-      next = 'EXPIRED';
-    } else if (pending === 0n && confirmed === 0n && invoice.status === 'SEEN') {
-      // everything replaced/rejected before confirmation
+    } else if (inblock > 0n || confirmed > 0n) {
+      next = 'CONFIRMING';
+    } else if (mempool > 0n) {
+      next = 'SEEN';
+    } else {
+      // every detected payment was replaced/rejected (or none ever arrived)
       next = expired ? 'EXPIRED' : 'NEW';
     }
 
@@ -452,7 +547,7 @@ export class PaymentEngineService {
           SET amount_paid_pending = $2, amount_paid_confirmed = $3, status = $4,
               paid_at = CASE WHEN $4 IN ('PAID','OVERPAID') AND paid_at IS NULL THEN now() ELSE paid_at END
         WHERE id = $1`,
-      [invoiceId, sums.pending, sums.confirmed, next],
+      [invoiceId, pendingText, sums.confirmed, next],
     );
 
     if (next === invoice.status) return [];
@@ -488,7 +583,7 @@ export class PaymentEngineService {
           status: next,
           asset: invoice.asset_code,
           amountDue: due,
-          amountPaidPending: sums.pending,
+          amountPaidPending: pendingText,
           amountPaidConfirmed: sums.confirmed,
           purpose: invoice.purpose ?? 'CHECKOUT',
           orderId: invoice.order_id ?? null,
@@ -499,11 +594,20 @@ export class PaymentEngineService {
     ];
   }
 
-  /** NEW invoices past their deadline expire; late payments keep their invoice alive. */
+  /**
+   * Resolves open invoices past their deadline. Expiry only concerns payment
+   * DETECTION: an invoice with any pending (detected) payment is never touched
+   * here - confirmation tracking continues independently for as long as it
+   * takes. What this tick resolves:
+   *   NEW/SEEN/CONFIRMING with nothing detected (or all detections dead) -> EXPIRED
+   *   CONFIRMING with a partial confirmed amount and no pending             -> UNDERPAID
+   */
   async expireInvoices(): Promise<void> {
     const stale = await this.db.query<{ id: string }>(
       `SELECT id FROM invoices
-        WHERE status IN ('NEW', 'SEEN') AND expires_at < now()
+        WHERE status IN ('NEW', 'SEEN', 'CONFIRMING')
+          AND expires_at < now()
+          AND amount_paid_pending = 0
         LIMIT 500`,
     );
     for (const row of stale) {

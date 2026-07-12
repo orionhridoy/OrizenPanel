@@ -17,7 +17,6 @@
 
 ## 📸 Screenshots
 
-
 | Control panel dashboard | Websites + Cloudflare automation |
 |---|---|
 | ![Orizen Panel dashboard](docs/screenshots/Dashboard.png) | ![Websites with Cloudflare automation](docs/screenshots/Websites.png) |
@@ -87,11 +86,12 @@ The installer provisions **everything needed for full operation** in one run: Ap
 
 ## 🚀 Quick start (one command)
 
-On a **fresh** server, copy these commands:
+On a **fresh** server, copy this folder over and run:
 
 ```bash
-git clone https://github.com/orionhridoy/OrizenPanel.git
-cd OrizenPanel
+scp -r Orizen root@YOUR_SERVER:/root/
+ssh root@YOUR_SERVER
+cd /root/Orizen
 sudo bash install.sh --auto        # installs everything, prints a random login once
 ```
 

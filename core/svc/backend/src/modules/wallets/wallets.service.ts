@@ -238,7 +238,8 @@ export class WalletsService {
   /**
    * Bounded watch keys for explorer-backed adapters (usesAddressPolling): only
    * addresses of invoices that can still receive a payment - open invoices plus
-   * a grace window for late arrivals. Keeps per-address HTTP polling small.
+   * a grace window for late arrivals (settings: payments.late_grace_hours,
+   * default 24). Keeps per-address HTTP polling small.
    */
   async activeWatchSet(chain: Chain): Promise<Set<string>> {
     const rows = await this.db.query<{ address: string; destination_tag: string | null }>(
@@ -248,7 +249,9 @@ export class WalletsService {
          JOIN invoices i ON i.address_id = wa.id
         WHERE w.asset_code = $1 AND w.type = 'DEPOSIT_HD'
           AND (i.status IN ('NEW', 'SEEN', 'CONFIRMING', 'UNDERPAID')
-               OR i.expires_at > now() - interval '6 hours')`,
+               OR i.expires_at > now() - make_interval(hours => COALESCE(
+                    (SELECT LEAST((value)::int, 720) FROM settings
+                      WHERE key = 'payments.late_grace_hours'), 24)))`,
       [CHAIN_WALLET_OWNER[chain]],
     );
     return this.toWatchKeys(rows);

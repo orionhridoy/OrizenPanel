@@ -139,6 +139,25 @@ export const ASSET_DECIMALS: Record<string, number> = {
   USDC_ERC20: 6,
 };
 
+/** Public block-explorer URL for a transaction, per asset. */
+export function explorerTxUrl(asset: string, txid: string): string | null {
+  switch (asset) {
+    case 'BTC':
+      return `https://www.blockchain.com/en/explorer/transactions/btc/${txid}`;
+    case 'LTC':
+      return `https://litecoinspace.org/tx/${txid}`;
+    case 'ETH':
+    case 'USDC_ERC20':
+      return `https://etherscan.io/tx/${txid}`;
+    case 'USDT_TRC20':
+      return `https://tronscan.org/#/transaction/${txid}`;
+    case 'XRP':
+      return `https://xrpscan.com/tx/${txid}`;
+    default:
+      return null;
+  }
+}
+
 export function fromBase(amount: string, asset: string): string {
   const decimals = ASSET_DECIMALS[asset] ?? 8;
   const padded = amount.padStart(decimals + 1, '0');
