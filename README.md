@@ -91,7 +91,7 @@ On a **fresh** server, copy this folder over and run:
 ```bash
 ssh root@YOUR_SERVER
 git clone https://github.com/orionhridoy/OrizenPanel.git
-cd Orizen
+cd OrizenPanel
 sudo bash install.sh --auto        # installs everything, prints a random login once
 ```
 
